@@ -68,11 +68,11 @@
                     <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-0">
                         <div class="d-flex align-items-center">
                             {% if entry.rank == 1 %}
-                            <span class="badge bg-warning text-dark rank-badge me-2">🥇</span>
+                            <span class="badge bg-medal-gold text-dark rank-badge me-2 ">🥇</span>
                             {% elif entry.rank == 2 %}
-                            <span class="badge bg-secondary rank-badge me-2">🥈</span>
+                            <span class="badge bg-medal-silver rank-badge me-2">🥈</span>
                             {% elif entry.rank == 3 %}
-                            <span class="badge bg-warning rank-badge me-2">🥉</span>
+                            <span class="badge bg-medal-bronze rank-badge me-2">🥉</span>
                             {% else %}
                             <span class="badge bg-primary rank-badge me-2">{{ entry.rank }}</span>
                             {% endif %}

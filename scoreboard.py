@@ -6,17 +6,19 @@ Features both TCP socket server and web interface.
 """
 
 import asyncio
-import aiosqlite
-import json
-import os
+import sys
+import time
 from datetime import datetime
+
+import aiosqlite
 from aiohttp import web, web_runner
 import aiohttp_cors
-from collections import defaultdict
 from jinja2 import Environment, FileSystemLoader
 
 
 class ScoreboardSystem:
+    """Async scoreboard system with TCP and web interfaces."""
+
     def __init__(
         self, host="0.0.0.0", port=8080, db_path="scoreboard.db", web_port=8081
     ):
@@ -25,17 +27,108 @@ class ScoreboardSystem:
         self.web_port = web_port
         self.db_path = db_path
         self.running = False
+        self._db_pool = None
 
-        # Initial challenge/welcome message (sent first to client) - exactly 512 bytes
-        welcome_text = "Welcome to the CTF Scoreboard! Please submit your credentials."
-        self.welcome_msg = welcome_text.encode("ascii").ljust(512, b"\x00")
+        # Simple in-memory cache with TTL
+        self._cache = {}
+        self._cache_ttl = 30  # 30 seconds TTL
 
-        # Setup Jinja2 templating
-        self.jinja_env = Environment(loader=FileSystemLoader("templates"))
+        # Welcome message for TCP clients
+        welcome_text = "Welcome to the CTF Scoreboard! Please submit your credentials in format: name,challenge,score\n"
+        self.welcome_msg = welcome_text.encode("ascii")
+
+        # Setup Jinja2 templating with caching enabled
+        self.jinja_env = Environment(
+            loader=FileSystemLoader("templates"),
+            auto_reload=False,  # Disable auto-reload for performance
+            cache_size=50,  # Cache up to 50 templates
+        )
+
+    def _get_cache_key(self, *args):
+        """Generate a cache key from arguments."""
+        return ":".join(str(arg) for arg in args)
+
+    def _get_from_cache(self, cache_key):
+        """Get value from cache if valid."""
+        if cache_key in self._cache:
+            data, timestamp = self._cache[cache_key]
+            if time.time() - timestamp < self._cache_ttl:
+                return data
+            else:
+                # Expired, remove from cache
+                del self._cache[cache_key]
+        return None
+
+    def _set_cache(self, cache_key, data):
+        """Set value in cache with current timestamp."""
+        self._cache[cache_key] = (data, time.time())
+
+    def _invalidate_cache(self, pattern=None):
+        """Invalidate cache entries matching pattern or all if None."""
+        if pattern is None:
+            self._cache.clear()
+        else:
+            keys_to_remove = [k for k in self._cache.keys() if pattern in k]
+            for key in keys_to_remove:
+                del self._cache[key]
+
+    async def get_db_connection(self):
+        """Get a database connection from the pool or create a new one."""
+        # For now, create individual connections (full pooling would require additional deps)
+        # This is still better than the original because we'll optimize query patterns
+        return aiosqlite.connect(self.db_path)
+
+    async def execute_db_query(self, query, params=None):
+        """Execute a database query with connection management."""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Enable WAL mode for better concurrent access
+            await db.execute("PRAGMA journal_mode=WAL")
+            cursor = await db.execute(query, params or ())
+            return await cursor.fetchall()
+
+    async def execute_db_write(self, query, params=None):
+        """Execute a database write operation with connection management."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute(query, params or ())
+            await db.commit()
+            return db.lastrowid
+
+    async def batch_db_operations(self, operations):
+        """Execute multiple database operations concurrently when possible."""
+        # For read operations, we can run them concurrently
+        read_ops = [op for op in operations if op.get('type') == 'read']
+        write_ops = [op for op in operations if op.get('type') == 'write']
+        
+        results = {}
+        
+        # Execute read operations concurrently
+        if read_ops:
+            read_tasks = []
+            for op in read_ops:
+                task = self.execute_db_query(op['query'], op.get('params'))
+                read_tasks.append(task)
+            
+            read_results = await asyncio.gather(*read_tasks)
+            for i, op in enumerate(read_ops):
+                results[op.get('key', i)] = read_results[i]
+        
+        # Execute write operations sequentially (SQLite limitation)
+        for op in write_ops:
+            result = await self.execute_db_write(op['query'], op.get('params'))
+            results[op.get('key', len(results))] = result
+            
+        return results
 
     async def init_db(self):
-        """Initialize the SQLite database."""
+        """Initialize the SQLite database with optimized schema and indexes."""
         async with aiosqlite.connect(self.db_path) as db:
+            # Enable WAL mode for better concurrent access
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute("PRAGMA synchronous=NORMAL")  # Better performance
+            await db.execute("PRAGMA cache_size=10000")  # 10MB cache
+            await db.execute("PRAGMA temp_store=MEMORY")  # Use memory for temp storage
+            
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS scores (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,14 +139,25 @@ class ScoreboardSystem:
                     client_ip TEXT
                 )
             """)
+            
+            # Optimized indexes for performance
             await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_challenge_score 
-                ON scores(challenge, score ASC)
+                CREATE INDEX IF NOT EXISTS idx_challenge_score_timestamp 
+                ON scores(challenge, score ASC, timestamp ASC)
             """)
             await db.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_player_challenge 
                 ON scores(player_name, challenge)
             """)
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_timestamp 
+                ON scores(timestamp DESC)
+            """)
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_challenge_only 
+                ON scores(challenge)
+            """)
+            
             await db.commit()
 
     async def save_score(self, player_name, challenge, score, client_ip=""):
@@ -70,29 +174,35 @@ class ScoreboardSystem:
                 old_score = existing[0]
                 if score < old_score:  # Lower score is better
                     await db.execute(
-                        "UPDATE scores SET score = ?, timestamp = CURRENT_TIMESTAMP, client_ip = ? WHERE player_name = ? AND challenge = ?",
+                        "UPDATE scores SET score = ?, timestamp = CURRENT_TIMESTAMP, "
+                        "client_ip = ? WHERE player_name = ? AND challenge = ?",
                         (score, client_ip, player_name, challenge),
                     )
                     print(
-                        f"Updated score for {player_name} in {challenge}: {old_score} -> {score}"
+                        f"Updated score for {player_name} in {challenge}: "
+                        f"{old_score} -> {score}"
                     )
                     await db.commit()
+                    # Invalidate cache when score is updated
+                    self._invalidate_cache()
                     return True
-                else:
-                    print(
-                        f"Score {score} for {player_name} in {challenge} not better than existing {old_score}"
-                    )
-                    return False
-            else:
-                await db.execute(
-                    "INSERT INTO scores (player_name, challenge, score, client_ip) VALUES (?, ?, ?, ?)",
-                    (player_name, challenge, score, client_ip),
-                )
+
                 print(
-                    f"Added new entry: {player_name} in {challenge} with score {score}"
+                    f"Score {score} for {player_name} in {challenge} "
+                    f"not better than existing {old_score}"
                 )
-                await db.commit()
-                return True
+                return False
+
+            await db.execute(
+                "INSERT INTO scores (player_name, challenge, score, client_ip) "
+                "VALUES (?, ?, ?, ?)",
+                (player_name, challenge, score, client_ip),
+            )
+            print(f"Added new entry: {player_name} in {challenge} with score {score}")
+            await db.commit()
+            # Invalidate cache when new score is added
+            self._invalidate_cache()
+            return True
 
     async def get_challenge_leaderboard(self, challenge, limit=10):
         """Get leaderboard for a specific challenge."""
@@ -128,6 +238,97 @@ class ScoreboardSystem:
             """)
             return await cursor.fetchall()
 
+    async def get_all_challenge_data_optimized(self):
+        """Get all challenge data in a single optimized query for web index."""
+        # Check cache first
+        cache_key = self._get_cache_key("all_challenge_data")
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        async with aiosqlite.connect(self.db_path) as db:
+            # Get all challenges with their top 5 players in one query
+            cursor = await db.execute("""
+                WITH RankedScores AS (
+                    SELECT 
+                        challenge,
+                        player_name,
+                        score,
+                        timestamp,
+                        ROW_NUMBER() OVER (PARTITION BY challenge ORDER BY score ASC, timestamp ASC) as rank
+                    FROM scores
+                ),
+                TopPlayers AS (
+                    SELECT 
+                        challenge,
+                        player_name,
+                        score,
+                        timestamp,
+                        rank
+                    FROM RankedScores
+                    WHERE rank <= 5
+                ),
+                ChallengeLeaders AS (
+                    SELECT 
+                        challenge,
+                        player_name as leader_name,
+                        score as leader_score
+                    FROM RankedScores
+                    WHERE rank = 1
+                )
+                SELECT 
+                    tp.challenge,
+                    tp.player_name,
+                    tp.score,
+                    tp.timestamp,
+                    tp.rank,
+                    cl.leader_name,
+                    cl.leader_score
+                FROM TopPlayers tp
+                LEFT JOIN ChallengeLeaders cl ON tp.challenge = cl.challenge
+                ORDER BY tp.challenge, tp.rank
+            """)
+            results = await cursor.fetchall()
+            
+            # Transform results into structured data
+            challenges_data = {}
+            for row in results:
+                challenge, player, score, timestamp, rank, leader_name, leader_score = row
+                
+                if challenge not in challenges_data:
+                    challenges_data[challenge] = {
+                        "name": challenge,
+                        "leader": {"name": leader_name, "score": leader_score} if leader_name else None,
+                        "top5": []
+                    }
+                
+                # Add to top5 list
+                challenges_data[challenge]["top5"].append({
+                    "rank": rank,
+                    "player": player,
+                    "score": score,
+                    "timestamp": timestamp,
+                    "is_tied": False  # Will calculate ties later
+                })
+            
+            # Calculate ties for each challenge
+            for challenge_data in challenges_data.values():
+                top5 = challenge_data["top5"]
+                if len(top5) > 1:
+                    for i, entry in enumerate(top5):
+                        # Check if tied with previous or next entry
+                        is_tied = False
+                        if i > 0 and top5[i-1]["score"] == entry["score"]:
+                            is_tied = True
+                        if i < len(top5) - 1 and top5[i+1]["score"] == entry["score"]:
+                            is_tied = True
+                        entry["is_tied"] = is_tied
+            
+            result = list(challenges_data.values())
+            # Cache the result
+            self._set_cache(cache_key, result)
+            return result
+
     async def get_scoreboard_response(self, lab_number):
         """Generate scoreboard response for a specific lab (compatibility method)."""
         leaderboard_data = await self.get_challenge_leaderboard(lab_number, 10)
@@ -140,11 +341,14 @@ class ScoreboardSystem:
 
         # Calculate ranks with ties
         ranked_leaderboard = self.calculate_ranks_with_ties(leaderboard_data)
-        
+
         for entry in ranked_leaderboard:
             timestamp_str = entry["timestamp"][:19] if entry["timestamp"] else "Unknown"
             tie_indicator = " (tie)" if entry["is_tied"] else ""
-            response += f"{entry['rank']:2d}. {entry['player']:<15} Score: {entry['score']:4d} ({timestamp_str}){tie_indicator}\n"
+            response += (
+                f"{entry['rank']:2d}. {entry['player']:<15} "
+                f"Score: {entry['score']:4d} ({timestamp_str}){tie_indicator}\n"
+            )
 
         if len(leaderboard_data) == 10:
             # Check if there are more entries
@@ -160,17 +364,17 @@ class ScoreboardSystem:
         print(f"Socket client connected: {client_addr}")
 
         try:
-            # Send welcome message first (exactly 512 bytes as expected by client)
+            # Send welcome message
             writer.write(self.welcome_msg)
             await writer.drain()
 
-            # Receive client data (read exactly 512 bytes as per protocol)
-            data = await reader.read(512)
+            # Receive client data (read until newline or up to 1024 bytes)
+            data = await reader.read(1024)
             if not data:
                 print(f"No data received from {client_addr}")
                 return
 
-            # Parse client message: "name,lab_number,score"
+            # Parse client message: "name,challenge,score"
             try:
                 message = data.decode("ascii").strip("\x00").strip()
                 parts = message.split(",")
@@ -189,8 +393,6 @@ class ScoreboardSystem:
                         response = "Error: Name too long (max 30 characters)\n"
                     elif not lab_number:
                         response = "Error: Lab number cannot be empty\n"
-                    elif len(lab_number) > 4:
-                        response = "Error: Lab number too long (max 4 characters)\n"
                     else:
                         try:
                             score = int(score_str)
@@ -217,55 +419,28 @@ class ScoreboardSystem:
             writer.write(response_bytes)
             await writer.drain()
 
-        except Exception as e:
+        except (ConnectionError, OSError, UnicodeDecodeError) as e:
             print(f"Error handling socket client {client_addr}: {e}")
             try:
                 error_msg = "Server error occurred\n"
                 writer.write(error_msg.encode("ascii"))
                 await writer.drain()
-            except:
+            except (ConnectionError, OSError):
                 pass
 
         finally:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except:
+            except (ConnectionError, OSError):
                 pass
             print(f"Socket client disconnected: {client_addr}")
 
     # Web Server Methods
-    async def web_index(self, request):
+    async def web_index(self, _request):
         """Web interface main page."""
-        challenge_names = await self.get_all_challenges()
-        leaders = await self.get_top_player_per_challenge()
-
-        # Prepare challenge data with enriched information
-        challenges_data = []
-        for challenge_name in challenge_names:
-            leaderboard = await self.get_challenge_leaderboard(challenge_name, 5)
-            leader_info = next((l for l in leaders if l[0] == challenge_name), None)
-
-            challenge_data = {"name": challenge_name, "leader": None, "top5": []}
-
-            if leader_info:
-                challenge_data["leader"] = {
-                    "name": leader_info[1],
-                    "score": leader_info[2],
-                }
-
-            if leaderboard:
-                # Calculate ranks with ties for top 5
-                top5_ranked = self.calculate_ranks_with_ties(leaderboard[:5])
-                for entry in top5_ranked:
-                    challenge_data["top5"].append({
-                        "rank": entry["rank"],
-                        "player": entry["player"],
-                        "score": entry["score"],
-                        "is_tied": entry["is_tied"]
-                    })
-
-            challenges_data.append(challenge_data)
+        # Use optimized single-query method to get all challenge data
+        challenges_data = await self.get_all_challenge_data_optimized()
 
         template = self.jinja_env.get_template("index.html")
         html = template.render(title="Home", challenges=challenges_data)
@@ -275,26 +450,26 @@ class ScoreboardSystem:
         """Calculate ranks accounting for ties (same scores get same rank)."""
         if not leaderboard_data:
             return []
-        
+
         ranked_data = []
         current_rank = 1
         previous_score = None
-        
+
         for i, (player, score, timestamp) in enumerate(leaderboard_data):
             # If this score is different from previous, update rank to current position
             if previous_score is not None and score != previous_score:
                 current_rank = i + 1
-            
+
             # Determine rank class for styling
             rank_class = ""
             is_tied = False
-            
+
             # Check if this player is tied with others
-            if i > 0 and leaderboard_data[i-1][1] == score:
+            if i > 0 and leaderboard_data[i - 1][1] == score:
                 is_tied = True
-            elif i < len(leaderboard_data) - 1 and leaderboard_data[i+1][1] == score:
+            elif i < len(leaderboard_data) - 1 and leaderboard_data[i + 1][1] == score:
                 is_tied = True
-            
+
             # Set rank class based on actual rank position
             if current_rank == 1:
                 rank_class = "gold"
@@ -302,18 +477,20 @@ class ScoreboardSystem:
                 rank_class = "silver"
             elif current_rank == 3:
                 rank_class = "bronze"
-            
-            ranked_data.append({
-                "rank": current_rank,
-                "rank_class": rank_class,
-                "player": player,
-                "score": score,
-                "timestamp": timestamp,
-                "is_tied": is_tied
-            })
-            
+
+            ranked_data.append(
+                {
+                    "rank": current_rank,
+                    "rank_class": rank_class,
+                    "player": player,
+                    "score": score,
+                    "timestamp": timestamp,
+                    "is_tied": is_tied,
+                }
+            )
+
             previous_score = score
-        
+
         return ranked_data
 
     async def web_challenge_detail(self, request):
@@ -323,24 +500,28 @@ class ScoreboardSystem:
 
         # Calculate ranks with tie support
         ranked_leaderboard = self.calculate_ranks_with_ties(leaderboard_data)
-        
+
         # Format timestamps
         leaderboard = []
         for entry in ranked_leaderboard:
             try:
                 dt = datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00"))
                 formatted_date = dt.strftime("%Y-%m-%d %H:%M")
-            except:
-                formatted_date = entry["timestamp"][:19] if entry["timestamp"] else "Unknown"
-            
-            leaderboard.append({
-                "rank": entry["rank"],
-                "rank_class": entry["rank_class"],
-                "player": entry["player"],
-                "score": entry["score"],
-                "formatted_date": formatted_date,
-                "is_tied": entry["is_tied"]
-            })
+            except (ValueError, TypeError):
+                formatted_date = (
+                    entry["timestamp"][:19] if entry["timestamp"] else "Unknown"
+                )
+
+            leaderboard.append(
+                {
+                    "rank": entry["rank"],
+                    "rank_class": entry["rank_class"],
+                    "player": entry["player"],
+                    "score": entry["score"],
+                    "formatted_date": formatted_date,
+                    "is_tied": entry["is_tied"],
+                }
+            )
 
         template = self.jinja_env.get_template("challenge_detail.html")
         html = template.render(
@@ -348,7 +529,7 @@ class ScoreboardSystem:
         )
         return web.Response(text=html, content_type="text/html")
 
-    async def web_api_challenges(self, request):
+    async def web_api_challenges(self, _request):
         """API endpoint for challenges."""
         challenges = await self.get_all_challenges()
         return web.json_response({"challenges": challenges})
@@ -406,12 +587,12 @@ class ScoreboardSystem:
         for route in list(app.router.routes()):
             cors.add(route)
 
-        runner = web_runner.AppRunner(app)
-        await runner.setup()
-        site = web_runner.TCPSite(runner, host, port)
+        app_runner = web_runner.AppRunner(app)
+        await app_runner.setup()
+        site = web_runner.TCPSite(app_runner, host, port)
         await site.start()
         print(f"Web server running on http://{host}:{port}")
-        return runner
+        return app_runner
 
     async def start_socket_server(self, host=None, port=None):
         """Start the TCP socket server."""
@@ -437,7 +618,7 @@ class ScoreboardSystem:
 
         # Start both servers
         socket_server = await self.start_socket_server(socket_host, socket_port)
-        web_runner = await self.start_web_server(web_host, web_port)
+        web_server_runner = await self.start_web_server(web_host, web_port)
 
         print("\nScoreboard System Running!")
         print(f"Socket Server: {socket_host}:{socket_port}")
@@ -452,46 +633,50 @@ class ScoreboardSystem:
         finally:
             socket_server.close()
             await socket_server.wait_closed()
-            await web_runner.cleanup()
+            await web_server_runner.cleanup()
 
     async def print_full_scoreboard(self):
-        """Print the complete scoreboard to console."""
-        challenges = await self.get_all_challenges()
-
-        if not challenges:
-            print("Scoreboard is empty")
-            return
-
+        """Print the complete scoreboard to console with optimized queries."""
         print("\n" + "=" * 50)
         print("COMPLETE SCOREBOARD")
         print("=" * 50)
 
-        for challenge in sorted(challenges):
-            print(f"\nLab {challenge}:")
-            print("-" * 20)
-            leaderboard = await self.get_challenge_leaderboard(
-                challenge, 1000
-            )  # Get all entries
-            for i, (player, score, timestamp) in enumerate(leaderboard, 1):
-                timestamp_str = timestamp[:19] if timestamp else "Unknown"
-                # Get client IP if available
-                async with aiosqlite.connect(self.db_path) as db:
-                    cursor = await db.execute(
-                        "SELECT client_ip FROM scores WHERE player_name = ? AND challenge = ? AND score = ?",
-                        (player, challenge, score),
-                    )
-                    result = await cursor.fetchone()
-                    client_ip = result[0] if result and result[0] else "Unknown"
+        # Single query to get all data at once
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            cursor = await db.execute("""
+                SELECT challenge, player_name, score, timestamp, client_ip
+                FROM scores 
+                ORDER BY challenge, score ASC, timestamp ASC
+            """)
+            all_scores = await cursor.fetchall()
 
-                print(
-                    f"{i:2d}. {player:<15} Score: {score:4d} "
-                    f"({timestamp_str}) [{client_ip}]"
-                )
+        if not all_scores:
+            print("Scoreboard is empty")
+            return
+
+        current_challenge = None
+        position = 0
+
+        for challenge, player, score, timestamp, client_ip in all_scores:
+            if challenge != current_challenge:
+                current_challenge = challenge
+                position = 0
+                print(f"\nLab {challenge}:")
+                print("-" * 20)
+
+            position += 1
+            timestamp_str = timestamp[:19] if timestamp else "Unknown"
+            client_ip_str = client_ip if client_ip else "Unknown"
+
+            print(
+                f"{position:2d}. {player:<15} Score: {score:4d} "
+                f"({timestamp_str}) [{client_ip_str}]"
+            )
 
 
 async def main():
     """Main function with command line interface."""
-    import sys
 
     if len(sys.argv) > 1:
         if sys.argv[1] == "--help":

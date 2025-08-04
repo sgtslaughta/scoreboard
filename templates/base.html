@@ -17,9 +17,19 @@
             font-size: 1.2em;
         }
 
+        .bg-medal-gold {
+            background-color: #ffd700;
+            color: #fff;
+        }
+
         .medal-silver {
             color: #c0c0c0;
             font-size: 1.2em;
+        }
+
+        .bg-medal-silver {
+            background-color: #c0c0c0;
+            color: #fff;
         }
 
         .medal-bronze {
@@ -27,51 +37,30 @@
             font-size: 1.2em;
         }
 
-        .challenge-card {
-            border-left: 4px solid var(--bs-primary);
-            transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        .bg-medal-bronze {
+            background-color: #cd7f32;
+            color: #fff;
         }
 
-        .challenge-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        .challenge-card {
+            border-left: 4px solid var(--bs-primary);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         }
 
         .leaderboard-card {
-            transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .leaderboard-card:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         }
 
         /* Enhanced shadows for all Bootstrap cards */
         .card {
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            transition: box-shadow 0.2s ease-in-out;
-        }
-
-        .card:hover {
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         }
 
         /* Dark mode shadow adjustments */
         [data-bs-theme="dark"] .card,
         [data-bs-theme="dark"] .challenge-card,
         [data-bs-theme="dark"] .leaderboard-card {
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        [data-bs-theme="dark"] .card:hover,
-        [data-bs-theme="dark"] .challenge-card:hover {
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.4);
-        }
-
-        [data-bs-theme="dark"] .leaderboard-card:hover {
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
         }
 
         .rank-badge {

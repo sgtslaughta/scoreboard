@@ -9,36 +9,36 @@ import time
 import random
 
 
-def send_score(host, port, player_name, lab_name, score):
+def send_score(server_host, server_port, player_name, lab_name, score):
     """Send a single score to the scoreboard server."""
     try:
-        # Connect to server
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((host, port))
+        client_socket.connect((server_host, server_port))
 
-        # Receive welcome message (exactly 512 bytes)
-        welcome = client_socket.recv(512)
+        # Receive welcome message
+        client_socket.recv(1024)  # Welcome message (not used)
 
-        # Send score (pad to 512 bytes as per protocol)
-        test_message = f"{player_name},{lab_name},{score}"
-        padded_message = test_message.encode("ascii").ljust(512, b"\x00")
-        client_socket.send(padded_message)
+        # Send score (no padding required)
+        test_message = f"{player_name},{lab_name},{score}\n"
+        client_socket.send(test_message.encode("ascii"))
 
         # Receive response
-        response = client_socket.recv(4096)
+        client_socket.recv(4096)  # Response (not used)
 
         client_socket.close()
         return True
 
-    except Exception as e:
+    except (ConnectionError, OSError) as e:
         print(f"Error sending score: {e}")
         return False
 
 
-def generate_test_data(host="localhost", port=8080):
+def generate_test_data(
+    server_host="localhost",
+    server_port=8080,
+):
     """Generate comprehensive test data for the scoreboard."""
 
-    # Random names for players
     first_names = [
         "Alice",
         "Bob",
@@ -94,84 +94,103 @@ def generate_test_data(host="localhost", port=8080):
         "Zara",
     ]
 
-    # Generate 50 different lab names (max 4 characters as per server validation)
-    lab_prefixes = ["C", "W", "P", "R", "M", "S", "O", "F"]  # Short prefixes for categories
-    lab_categories = ["Crypto", "Web", "Pwn", "Rev", "Misc", "Stego", "Osint", "Forensics"]
-    
-    labs = []
-    used_names = set()
-    
-    # Generate unique 4-character lab names
-    for i in range(50):
-        attempts = 0
-        while attempts < 100:  # Avoid infinite loop
-            prefix = random.choice(lab_prefixes)
-            number = random.randint(1, 999)
-            lab_name = f"{prefix}{number}"
-            
-            # Ensure it's max 4 characters and unique
-            if len(lab_name) <= 4 and lab_name not in used_names:
-                labs.append(lab_name)
-                used_names.add(lab_name)
-                break
-            attempts += 1
-        
-        # Fallback if we can't generate unique name
-        if len(labs) <= i:
-            lab_name = f"L{i+1}"
-            labs.append(lab_name)
+    challenge_names = [
+        "RSA_Baby",
+        "AES_Master",
+        "Hash_Cracker",
+        "DiffieHell",
+        "ECC_Curve",
+        "SQLi_Basic",
+        "XSS_Hunter",
+        "CSRF_Token",
+        "JWT_Forge",
+        "LFI_Path",
+        "BuffOver",
+        "ROP_Chain",
+        "Format_Str",
+        "HeapSpray",
+        "Stack_Canary",
+        "RE_Basics",
+        "Unpack_Me",
+        "Anti_Debug",
+        "VM_Detect",
+        "Code_Cave",
+        "Zip_Bomb",
+        "QR_Hidden",
+        "Audio_Spec",
+        "Polyglot",
+        "Base64_Nest",
+        "LSB_Hide",
+        "Pixel_Art",
+        "PNG_Secret",
+        "JPEG_Meta",
+        "GIF_Frame",
+        "Google_Fu",
+        "LinkedIn",
+        "Username",
+        "Email_Hunt",
+        "Geo_Photo",
+        "Disk_Image",
+        "Memory_Dump",
+        "Network_Cap",
+        "Log_Analysis",
+        "File_Carv",
+        "Blind_SQL",
+        "XXE_Parse",
+        "SSTI_Jinja",
+        "Deserialization",
+        "Race_Cond",
+        "Use_After_Free",
+        "Double_Free",
+        "Integer_Over",
+        "Path_Traverse",
+        "Command_Inj",
+    ]
+
+    labs = challenge_names.copy()
 
     print(f"Generating test data for {len(labs)} labs...")
     print("Sample lab names:", labs[:10])
 
     total_entries = 0
 
-    # For each lab, create 3-15 random players with scores
     for lab_name in labs:
-        num_players = random.randint(3, 15)  # Random number of players per lab
+        num_players = random.randint(3, 15)
         lab_players = random.sample(first_names, min(num_players, len(first_names)))
 
         print(f"Creating {num_players} entries for {lab_name}...")
 
         for player_name in lab_players:
-            # Generate score (lower is better, range 1-300)
             base_score = random.randint(1, 300)
 
-            # Add some chance for ties
             if random.random() < 0.15:  # 15% chance of tie
                 tie_scores = [10, 25, 50, 100, 150, 200]
                 base_score = random.choice(tie_scores)
 
-            # Send the score
-            if send_score(host, port, player_name, lab_name, base_score):
+            if send_score(server_host, server_port, player_name, lab_name, base_score):
                 total_entries += 1
 
-            # Small delay to avoid overwhelming the server
             time.sleep(0.01)
 
-    print(f"\nTest data generation complete!")
+    print("\nTest data generation complete!")
     print(f"Created {total_entries} total entries across {len(labs)} labs")
     return total_entries
 
 
-def test_single_score(host="localhost", port=8080):
+def test_single_score(server_host="localhost", server_port=8080):
     """Test sending a single score (original functionality)."""
     try:
-        # Connect to server
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((host, port))
+        client_socket.connect((server_host, server_port))
 
-        # Receive welcome message (exactly 512 bytes)
-        welcome = client_socket.recv(512)
+        welcome = client_socket.recv(1024)
         print(
             f"Received welcome ({len(welcome)} bytes): {welcome.decode('ascii').strip()}"
         )
 
-        # Send test score (pad to 512 bytes as per protocol)
-        test_message = "TestUser,Demo,42"
-        padded_message = test_message.encode("ascii").ljust(512, b"\x00")
-        client_socket.send(padded_message)
-        print(f"Sent message ({len(padded_message)} bytes): {test_message}")
+        test_message = "TestUser,Demo,42\n"
+        client_socket.send(test_message.encode("ascii"))
+        print(f"Sent message ({len(test_message)} bytes): {test_message.strip()}")
 
         # Receive response
         response = client_socket.recv(4096)
@@ -181,7 +200,7 @@ def test_single_score(host="localhost", port=8080):
         print("Single score test completed successfully!")
         return True
 
-    except Exception as e:
+    except (ConnectionError, OSError) as e:
         print(f"Test failed: {e}")
         return False
 
@@ -217,9 +236,13 @@ if __name__ == "__main__":
             print("  python test_client.py --generate 192.168.1.100")
             print("")
             print("Test Data Generation Features:")
-            print("  - Creates 50 different CTF-style challenges")
-            print("  - 8 categories: C(rypto), W(eb), P(wn), R(ev), M(isc), S(tego), O(sint), F(orensics)")
-            print("  - Challenge names: 4 chars max (e.g., C123, W45, P7)")
+            print("  - Creates 50 different realistic CTF challenges")
+            print(
+                "  - 8 categories: Crypto, Web, Pwn, Rev, Misc, Stego, Osint, Forensics"
+            )
+            print(
+                "  - Challenge names: Realistic CTF names (e.g., RSA_Baby, SQLi_Basic, BuffOver)"
+            )
             print("  - 3-15 random players per challenge")
             print("  - Realistic scoring (1-300 points, lower is better)")
             print("  - 15% chance of tied scores for testing tie functionality")
