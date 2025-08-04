@@ -1,0 +1,316 @@
+/* ==================== PROFESSIONAL COMPETITIVE THEME ==================== */
+
+/* Custom Color Palette */
+:root {
+    --comp-bg-primary: #1a1d24;
+    --comp-bg-secondary: #2a2f3a;
+    --comp-accent: #0066cc;
+    --comp-accent-success: #28a745;
+    --comp-accent-warning: #ffc107;
+    --comp-text-bright: #ffffff;
+    --comp-text-muted: #9ca3af;
+    --comp-gold: #ffd700;
+    --comp-silver: #c0c0c0;
+    --comp-bronze: #cd7f32;
+}
+
+/* Override Bootstrap for professional dark theme */
+[data-bs-theme="dark"] {
+    --bs-body-bg: var(--comp-bg-primary);
+    --bs-body-color: var(--comp-text-bright);
+    --bs-primary: var(--comp-accent);
+    --bs-secondary: var(--comp-text-muted);
+    --bs-success: var(--comp-accent-success);
+    --bs-warning: var(--comp-accent-warning);
+}
+
+/* Clean Typography */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    background: var(--comp-bg-primary);
+    min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-weight: 700;
+    color: var(--comp-text-bright);
+}
+
+.display-4,
+.display-5 {
+    font-weight: 800;
+    color: var(--comp-text-bright);
+}
+
+/* Professional Card Styling */
+.card {
+    background: var(--comp-bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+. {
+    border-left: 4px solid var(--comp-accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.leaderboard-card {
+    background: var(--comp-bg-secondary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Professional Button Styling */
+.btn {
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-primary {
+    background: var(--comp-accent);
+    border-color: var(--comp-accent);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #0052a3;
+    border-color: #0052a3;
+}
+
+.btn-outline-secondary {
+    border-color: var(--comp-accent);
+    color: var(--comp-accent);
+}
+
+.btn-outline-secondary:hover {
+    background: var(--comp-accent);
+    border-color: var(--comp-accent);
+    color: white;
+}
+
+/* Enhanced Medal System */
+.medal-gold,
+.bg-medal-gold {
+    color: var(--comp-gold);
+    background: var(--comp-gold);
+    font-weight: bold;
+    border-radius: inherit;
+}
+
+.medal-silver,
+.bg-medal-silver {
+    color: var(--comp-silver);
+    background: var(--comp-silver);
+    font-weight: bold;
+    border-radius: inherit;
+}
+
+.medal-bronze,
+.bg-medal-bronze {
+    color: var(--comp-bronze);
+    background: var(--comp-bronze);
+    font-weight: bold;
+    border-radius: inherit;
+}
+
+.border-medal-gold {
+    border-color: var(--comp-gold) !important;
+}
+
+.border-medal-silver {
+    border-color: var(--comp-silver) !important;
+}
+
+.border-medal-bronze {
+    border-color: var(--comp-bronze) !important;
+}
+
+.text-medal-gold {
+    color: var(--comp-gold) !important;
+}
+
+.text-medal-silver {
+    color: var(--comp-silver) !important;
+}
+
+.text-medal-bronze {
+    color: var(--comp-bronze) !important;
+}
+
+/* Rank Badge System */
+.rank-badge {
+    font-weight: 700;
+    min-width: 45px;
+    text-align: center;
+    border-radius: 8px;
+}
+
+.badge {
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 6px;
+}
+
+.bg-success {
+    background: var(--comp-accent-success) !important;
+    color: white !important;
+}
+
+.bg-warning {
+    background: var(--comp-accent-warning) !important;
+    color: #000 !important;
+}
+
+/* List Group Enhancements */
+.list-group-item {
+    background: rgba(42, 47, 58, 0.7);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--comp-text-bright);
+}
+
+/* Alert System */
+.alert {
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.alert-info {
+    background: rgba(0, 102, 204, 0.15);
+    border-color: var(--comp-accent);
+    color: var(--comp-text-bright);
+}
+
+.alert-success {
+    background: rgba(40, 167, 69, 0.15);
+    border-color: var(--comp-accent-success);
+    color: var(--comp-text-bright);
+}
+
+/* Table Styling */
+.table {
+    background: var(--comp-bg-secondary);
+    color: var(--comp-text-bright);
+}
+
+.table-striped>tbody>tr:nth-of-type(odd)>td {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Card Headers */
+.card-header {
+    background: linear-gradient(135deg, var(--comp-bg-secondary), #1e2328) !important;
+    border-bottom: 2px solid var(--comp-accent);
+    color: var(--comp-text-bright) !important;
+    font-weight: 600;
+    border-top-left-radius: calc(12px - 1px) !important;
+    border-top-right-radius: calc(12px - 1px) !important;
+}
+
+/* Dark Mode Toggle */
+.dark-mode-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: var(--comp-bg-secondary);
+    border: 2px solid var(--comp-accent);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+}
+
+.dark-mode-toggle:hover {
+    background: var(--comp-accent);
+}
+
+/* Auto-refresh indicator */
+.auto-refresh-indicator {
+    font-size: 0.8em;
+    opacity: 0.8;
+    color: var(--comp-accent);
+    font-weight: 500;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--comp-bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--comp-accent);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #0052a3;
+}
+
+/* Text Colors */
+.text-muted {
+    color: var(--comp-text-muted) !important;
+}
+
+/* Light Mode Overrides */
+[data-bs-theme="light"] {
+    --comp-bg-primary: #f8f9fa;
+    --comp-bg-secondary: #ffffff;
+    --comp-text-bright: #212529;
+    --comp-text-muted: #6c757d;
+}
+
+[data-bs-theme="light"] .card {
+    background: white;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    color: #212529;
+}
+
+[data-bs-theme="light"] .,
+[data-bs-theme="light"] .leaderboard-card {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+[data-bs-theme="light"] .card-header {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef) !important;
+    color: var(--comp-text-bright) !important;
+    border-top-left-radius: calc(12px - 1px) !important;
+    border-top-right-radius: calc(12px - 1px) !important;
+}
+
+[data-bs-theme="light"] .list-group-item {
+    background: rgba(248, 249, 250, 0.7);
+    color: var(--comp-text-bright);
+}
+
+[data-bs-theme="light"] .text-muted {
+    color: #6c757d !important;
+}
+
+[data-bs-theme="light"] h1, [data-bs-theme="light"] h2, [data-bs-theme="light"] h3, 
+[data-bs-theme="light"] h4, [data-bs-theme="light"] h5, [data-bs-theme="light"] h6 {
+    color: #212529 !important;
+}
+
+[data-bs-theme="light"] .card-title, [data-bs-theme="light"] .card-subtitle {
+    color: #212529 !important;
+}
+
+[data-bs-theme="light"] .btn:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+}

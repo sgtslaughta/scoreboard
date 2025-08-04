@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <a href="/players" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Rankings
+            </a>
+            <h1 class="display-5 text-center flex-grow-1 mb-0">
+                <i class="bi bi-person-fill text-primary"></i>
+                {{ player_name }}
+            </h1>
+            <div style="width: 200px;"></div> <!-- Spacer for centering -->
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% if not challenges %}
+        <div class="alert alert-info text-center" role="alert">
+            <i class="bi bi-info-circle"></i>
+            <strong>No solutions found for {{ player_name }}.</strong>
+        </div>
+        {% else %}
+
+        <!-- Player Summary Card -->
+        <div class="row my-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0">
+                            <i class="bi bi-person-badge"></i> {{ player_name }}'s Performance
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-primary">{{ challenges|length }}</h4>
+                                    <small class="text-muted">Challenges Solved</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-success">{{ challenges|sum(attribute='score') }}</h4>
+                                    <small class="text-muted">Total Score</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-warning">{{ ((challenges|sum(attribute='score')) /
+                                        (challenges|length))|round(1) if challenges }}</h4>
+                                    <small class="text-muted">Average Score</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <h4 class="text-info">{{ (challenges|min(attribute='score')).score if challenges }}</h4>
+                                <small class="text-muted">Best Score</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Solutions -->
+        <div class="row">
+            {% for solution in challenges %}
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-flag-fill"></i> {{ solution.challenge }}
+                        </h5>
+                        <div>
+                            <span class="badge bg-success">{{ solution.score }} points</span>
+                            <small class="text-muted ms-2">{{ solution.formatted_date }}</small>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-3 text-muted">
+                            <i class="bi bi-code-slash"></i> Solution Code
+                        </h6>
+                        <div class="bg-dark p-3" style="border-radius: 8px;">
+                            <pre class="text-light mb-0"
+                                style="white-space: pre-wrap; word-wrap: break-word;"><code>{{ solution.solve_code | e }}</code></pre>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar3"></i> Submitted: {{ solution.formatted_date }}
+                                </small>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <a href="/challenge/{{ solution.challenge }}" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-list-ul"></i> View Challenge Leaderboard
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

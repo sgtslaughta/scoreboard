@@ -9,7 +9,7 @@ import time
 import random
 
 
-def send_score(server_host, server_port, player_name, lab_name, score):
+def send_score(server_host, server_port, player_name, lab_name, score, solve_code):
     """Send a single score to the scoreboard server."""
     try:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -19,7 +19,7 @@ def send_score(server_host, server_port, player_name, lab_name, score):
         client_socket.recv(1024)  # Welcome message (not used)
 
         # Send score (no padding required)
-        test_message = f"{player_name},{lab_name},{score}\n"
+        test_message = f"{player_name},{lab_name},{score},{solve_code}\n"
         client_socket.send(test_message.encode("ascii"))
 
         # Receive response
@@ -167,7 +167,117 @@ def generate_test_data(
                 tie_scores = [10, 25, 50, 100, 150, 200]
                 base_score = random.choice(tie_scores)
 
-            if send_score(server_host, server_port, player_name, lab_name, base_score):
+            # Generate a realistic solve code based on challenge type
+            solve_codes = [
+                f"print('Hello {lab_name}!')",
+                f"import requests; r = requests.get('/{lab_name.lower()}')",
+                f"curl -X POST /api/{lab_name.lower()}",
+                f"SELECT * FROM {lab_name.lower()} WHERE id=1",
+                f"python exploit_{lab_name.lower()}.py",
+                f"nc target.com 1337 < payload_{lab_name}.txt",
+                f"./solve_{lab_name.lower()}.sh",
+                f"echo 'flag{{solved_{lab_name.lower()}}}' | base64",
+                f"openssl enc -d -aes256 < {lab_name.lower()}.enc",
+                f"john --wordlist=rockyou.txt {lab_name.lower()}.hash",
+                # Multi-line Python exploit
+                f"""#!/usr/bin/env python3
+import requests
+import sys
+
+target = sys.argv[1] if len(sys.argv) > 1 else 'localhost'
+payload = {{'injection': 'admin\\'--'}}
+
+r = requests.post(f'http://{{target}}/{lab_name.lower()}', data=payload)
+if 'flag{{' in r.text:
+    print('Success! Found flag in response')
+    print(r.text)
+else:
+    print('Exploit failed')""",
+                # Multi-line bash script
+                f"""#!/bin/bash
+echo "Starting {lab_name} exploit..."
+TARGET_HOST=${{1:-localhost}}
+TARGET_PORT=${{2:-8080}}
+
+# Step 1: Enumerate endpoints
+echo "Enumerating endpoints..."
+curl -s http://$TARGET_HOST:$TARGET_PORT/{lab_name.lower()}/
+
+# Step 2: Send payload
+echo "Sending payload..."
+curl -X POST \\
+  -H "Content-Type: application/json" \\
+  -d '{{"exploit": "payload"}}' \\
+  http://$TARGET_HOST:$TARGET_PORT/{lab_name.lower()}/submit
+
+echo "Exploit complete!""",
+                # Multi-line SQL injection
+                f"""-- {lab_name} SQL Injection Exploit
+-- Step 1: Test for basic injection
+' OR 1=1--
+
+-- Step 2: Enumerate database structure
+' UNION SELECT null,table_name,null FROM information_schema.tables--
+
+-- Step 3: Extract data
+' UNION SELECT id,username,password FROM users WHERE username='admin'--
+
+-- Step 4: Extract flag
+' UNION SELECT flag FROM {lab_name.lower()}_flags LIMIT 1--""",
+                # Multi-line C exploit
+                f"""#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// {lab_name} Buffer Overflow Exploit
+int main(int argc, char *argv[]) {{
+    char buffer[256];
+    char shellcode[] = "\\x31\\xc0\\x50\\x68\\x2f\\x2f\\x73\\x68";
+    
+    printf("Exploiting {lab_name}...\\n");
+    
+    // Create overflow payload
+    memset(buffer, 'A', 256);
+    strcat(buffer, shellcode);
+    
+    // Trigger overflow
+    vulnerable_function(buffer);
+    
+    return 0;
+}}""",
+                # Multi-line JavaScript payload
+                f"""// {lab_name} XSS Payload
+function exploit() {{
+    // Step 1: Test for XSS
+    var payload = '<script>alert("XSS")</script>';
+    
+    // Step 2: Inject payload into vulnerable parameter
+    var url = window.location.href + '?search=' + encodeURIComponent(payload);
+    
+    // Step 3: Send to target
+    fetch('/api/{lab_name.lower()}', {{
+        method: 'POST',
+        headers: {{'Content-Type': 'application/json'}},
+        body: JSON.stringify({{
+            'payload': payload,
+            'target': 'admin_panel'
+        }})
+    }})
+    .then(response => response.text())
+    .then(data => {{
+        if (data.includes('flag{{')) {{
+            console.log('Flag found:', data);
+        }}
+    }});
+}}
+
+exploit();""",
+            ]
+            solve_code = random.choice(solve_codes)
+
+            if send_score(
+                server_host, server_port, player_name, lab_name, base_score, solve_code
+            ):
                 total_entries += 1
 
             time.sleep(0.01)
@@ -188,7 +298,7 @@ def test_single_score(server_host="localhost", server_port=8080):
             f"Received welcome ({len(welcome)} bytes): {welcome.decode('ascii').strip()}"
         )
 
-        test_message = "TestUser,Demo,42\n"
+        test_message = "TestUser,Demo,42,print('Hello World!')\n"
         client_socket.send(test_message.encode("ascii"))
         print(f"Sent message ({len(test_message)} bytes): {test_message.strip()}")
 
@@ -247,6 +357,7 @@ if __name__ == "__main__":
             print("  - Realistic scoring (1-300 points, lower is better)")
             print("  - 15% chance of tied scores for testing tie functionality")
             print("  - Over 50 different player names")
+            print("  - Generates realistic solve codes for each submission")
         else:
             print(f"Unknown option: {sys.argv[1]}")
             print("Use --help for usage information")

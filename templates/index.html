@@ -21,9 +21,14 @@
         </div>
 
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <button class="btn btn-primary" onclick="refreshPage()">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
-            </button>
+            <div>
+                <button class="btn btn-primary me-2" onclick="refreshPage()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <a href="/players" class="btn btn-outline-primary">
+                    <i class="bi bi-people-fill"></i> Player Rankings
+                </a>
+            </div>
             <small class="text-muted auto-refresh-indicator">
                 <i class="bi bi-clock"></i> Auto-refresh every 30 seconds
             </small>

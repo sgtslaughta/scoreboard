@@ -34,7 +34,7 @@ class ScoreboardSystem:
         self._cache_ttl = 30  # 30 seconds TTL
 
         # Welcome message for TCP clients
-        welcome_text = "Welcome to the CTF Scoreboard! Please submit your credentials in format: name,challenge,score\n"
+        welcome_text = "Welcome to the CTF Scoreboard! Please submit your credentials in format: name,challenge,score,solve_code\n"
         self.welcome_msg = welcome_text.encode("ascii")
 
         # Setup Jinja2 templating with caching enabled
@@ -97,27 +97,27 @@ class ScoreboardSystem:
     async def batch_db_operations(self, operations):
         """Execute multiple database operations concurrently when possible."""
         # For read operations, we can run them concurrently
-        read_ops = [op for op in operations if op.get('type') == 'read']
-        write_ops = [op for op in operations if op.get('type') == 'write']
-        
+        read_ops = [op for op in operations if op.get("type") == "read"]
+        write_ops = [op for op in operations if op.get("type") == "write"]
+
         results = {}
-        
+
         # Execute read operations concurrently
         if read_ops:
             read_tasks = []
             for op in read_ops:
-                task = self.execute_db_query(op['query'], op.get('params'))
+                task = self.execute_db_query(op["query"], op.get("params"))
                 read_tasks.append(task)
-            
+
             read_results = await asyncio.gather(*read_tasks)
             for i, op in enumerate(read_ops):
-                results[op.get('key', i)] = read_results[i]
-        
+                results[op.get("key", i)] = read_results[i]
+
         # Execute write operations sequentially (SQLite limitation)
         for op in write_ops:
-            result = await self.execute_db_write(op['query'], op.get('params'))
-            results[op.get('key', len(results))] = result
-            
+            result = await self.execute_db_write(op["query"], op.get("params"))
+            results[op.get("key", len(results))] = result
+
         return results
 
     async def init_db(self):
@@ -128,18 +128,19 @@ class ScoreboardSystem:
             await db.execute("PRAGMA synchronous=NORMAL")  # Better performance
             await db.execute("PRAGMA cache_size=10000")  # 10MB cache
             await db.execute("PRAGMA temp_store=MEMORY")  # Use memory for temp storage
-            
+
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS scores (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     player_name TEXT NOT NULL,
                     challenge TEXT NOT NULL,
                     score INTEGER NOT NULL,
+                    solve_code TEXT NOT NULL,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     client_ip TEXT
                 )
             """)
-            
+
             # Optimized indexes for performance
             await db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_challenge_score_timestamp 
@@ -157,10 +158,28 @@ class ScoreboardSystem:
                 CREATE INDEX IF NOT EXISTS idx_challenge_only 
                 ON scores(challenge)
             """)
-            
+
             await db.commit()
 
-    async def save_score(self, player_name, challenge, score, client_ip=""):
+            # Handle schema migration for solve_code column
+            await self._migrate_schema(db)
+
+    async def _migrate_schema(self, db):
+        """Handle database schema migrations."""
+        # Check if solve_code column exists
+        cursor = await db.execute("PRAGMA table_info(scores)")
+        columns = await cursor.fetchall()
+        column_names = [column[1] for column in columns]
+
+        if "solve_code" not in column_names:
+            print("Migrating database schema to add solve_code column...")
+            await db.execute(
+                "ALTER TABLE scores ADD COLUMN solve_code TEXT DEFAULT 'No solution provided'"
+            )
+            await db.commit()
+            print("Schema migration completed.")
+
+    async def save_score(self, player_name, challenge, score, solve_code, client_ip=""):
         """Save a score to the database, updating if better score exists."""
         async with aiosqlite.connect(self.db_path) as db:
             # Check for existing score
@@ -174,9 +193,9 @@ class ScoreboardSystem:
                 old_score = existing[0]
                 if score < old_score:  # Lower score is better
                     await db.execute(
-                        "UPDATE scores SET score = ?, timestamp = CURRENT_TIMESTAMP, "
+                        "UPDATE scores SET score = ?, solve_code = ?, timestamp = CURRENT_TIMESTAMP, "
                         "client_ip = ? WHERE player_name = ? AND challenge = ?",
-                        (score, client_ip, player_name, challenge),
+                        (score, solve_code, client_ip, player_name, challenge),
                     )
                     print(
                         f"Updated score for {player_name} in {challenge}: "
@@ -194,9 +213,9 @@ class ScoreboardSystem:
                 return False
 
             await db.execute(
-                "INSERT INTO scores (player_name, challenge, score, client_ip) "
-                "VALUES (?, ?, ?, ?)",
-                (player_name, challenge, score, client_ip),
+                "INSERT INTO scores (player_name, challenge, score, solve_code, client_ip) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (player_name, challenge, score, solve_code, client_ip),
             )
             print(f"Added new entry: {player_name} in {challenge} with score {score}")
             await db.commit()
@@ -209,7 +228,7 @@ class ScoreboardSystem:
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute(
                 """
-                SELECT player_name, score, timestamp 
+                SELECT player_name, score, timestamp, solve_code 
                 FROM scores 
                 WHERE challenge = ? 
                 ORDER BY score ASC 
@@ -255,6 +274,7 @@ class ScoreboardSystem:
                         player_name,
                         score,
                         timestamp,
+                        solve_code,
                         ROW_NUMBER() OVER (PARTITION BY challenge ORDER BY score ASC, timestamp ASC) as rank
                     FROM scores
                 ),
@@ -264,6 +284,7 @@ class ScoreboardSystem:
                         player_name,
                         score,
                         timestamp,
+                        solve_code,
                         rank
                     FROM RankedScores
                     WHERE rank <= 5
@@ -281,6 +302,7 @@ class ScoreboardSystem:
                     tp.player_name,
                     tp.score,
                     tp.timestamp,
+                    tp.solve_code,
                     tp.rank,
                     cl.leader_name,
                     cl.leader_score
@@ -289,28 +311,42 @@ class ScoreboardSystem:
                 ORDER BY tp.challenge, tp.rank
             """)
             results = await cursor.fetchall()
-            
+
             # Transform results into structured data
             challenges_data = {}
             for row in results:
-                challenge, player, score, timestamp, rank, leader_name, leader_score = row
-                
+                (
+                    challenge,
+                    player,
+                    score,
+                    timestamp,
+                    solve_code,
+                    rank,
+                    leader_name,
+                    leader_score,
+                ) = row
+
                 if challenge not in challenges_data:
                     challenges_data[challenge] = {
                         "name": challenge,
-                        "leader": {"name": leader_name, "score": leader_score} if leader_name else None,
-                        "top5": []
+                        "leader": {"name": leader_name, "score": leader_score}
+                        if leader_name
+                        else None,
+                        "top5": [],
                     }
-                
+
                 # Add to top5 list
-                challenges_data[challenge]["top5"].append({
-                    "rank": rank,
-                    "player": player,
-                    "score": score,
-                    "timestamp": timestamp,
-                    "is_tied": False  # Will calculate ties later
-                })
-            
+                challenges_data[challenge]["top5"].append(
+                    {
+                        "rank": rank,
+                        "player": player,
+                        "score": score,
+                        "timestamp": timestamp,
+                        "solve_code": solve_code,
+                        "is_tied": False,  # Will calculate ties later
+                    }
+                )
+
             # Calculate ties for each challenge
             for challenge_data in challenges_data.values():
                 top5 = challenge_data["top5"]
@@ -318,12 +354,12 @@ class ScoreboardSystem:
                     for i, entry in enumerate(top5):
                         # Check if tied with previous or next entry
                         is_tied = False
-                        if i > 0 and top5[i-1]["score"] == entry["score"]:
+                        if i > 0 and top5[i - 1]["score"] == entry["score"]:
                             is_tied = True
-                        if i < len(top5) - 1 and top5[i+1]["score"] == entry["score"]:
+                        if i < len(top5) - 1 and top5[i + 1]["score"] == entry["score"]:
                             is_tied = True
                         entry["is_tied"] = is_tied
-            
+
             result = list(challenges_data.values())
             # Cache the result
             self._set_cache(cache_key, result)
@@ -374,17 +410,20 @@ class ScoreboardSystem:
                 print(f"No data received from {client_addr}")
                 return
 
-            # Parse client message: "name,challenge,score"
+            # Parse client message: "name,challenge,score,solve_code"
             try:
                 message = data.decode("ascii").strip("\x00").strip()
-                parts = message.split(",")
+                parts = message.split(
+                    ",", 3
+                )  # Split into max 4 parts to allow commas in solve code
 
-                if len(parts) != 3:
-                    response = "Error: Invalid message format. Expected: name,lab_number,score\n"
+                if len(parts) != 4:
+                    response = "Error: Invalid message format. Expected: name,challenge,score,solve_code\n"
                 else:
                     name = parts[0].strip()
                     lab_number = parts[1].strip()
                     score_str = parts[2].strip()
+                    solve_code = parts[3].strip()
 
                     # Validate inputs according to protocol specs
                     if not name:
@@ -393,6 +432,8 @@ class ScoreboardSystem:
                         response = "Error: Name too long (max 30 characters)\n"
                     elif not lab_number:
                         response = "Error: Lab number cannot be empty\n"
+                    elif not solve_code:
+                        response = "Error: Solve code cannot be empty\n"
                     else:
                         try:
                             score = int(score_str)
@@ -402,7 +443,7 @@ class ScoreboardSystem:
                                 # Add to scoreboard
                                 client_ip = client_addr[0] if client_addr else ""
                                 await self.save_score(
-                                    name, lab_number, score, client_ip
+                                    name, lab_number, score, solve_code, client_ip
                                 )
                                 # Generate formatted scoreboard response
                                 response = await self.get_scoreboard_response(
@@ -455,7 +496,12 @@ class ScoreboardSystem:
         current_rank = 1
         previous_score = None
 
-        for i, (player, score, timestamp) in enumerate(leaderboard_data):
+        for i, entry in enumerate(leaderboard_data):
+            if len(entry) == 4:  # New format with solve_code
+                player, score, timestamp, solve_code = entry
+            else:  # Old format without solve_code
+                player, score, timestamp = entry
+                solve_code = "No solution provided"
             # If this score is different from previous, update rank to current position
             if previous_score is not None and score != previous_score:
                 current_rank = i + 1
@@ -485,6 +531,7 @@ class ScoreboardSystem:
                     "player": player,
                     "score": score,
                     "timestamp": timestamp,
+                    "solve_code": solve_code,
                     "is_tied": is_tied,
                 }
             )
@@ -492,6 +539,61 @@ class ScoreboardSystem:
             previous_score = score
 
         return ranked_data
+
+    async def get_player_rankings(self):
+        """Get overall player rankings based on total scores across all challenges."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("""
+                SELECT 
+                    player_name,
+                    COUNT(*) as challenges_solved,
+                    SUM(score) as total_score,
+                    AVG(score) as avg_score,
+                    MIN(score) as best_score,
+                    MAX(timestamp) as last_activity
+                FROM scores 
+                GROUP BY player_name 
+                ORDER BY challenges_solved DESC, total_score ASC, avg_score ASC
+            """)
+            results = await cursor.fetchall()
+
+            # Add ranking
+            ranked_players = []
+            for rank, (
+                player,
+                challenges,
+                total,
+                avg,
+                best,
+                last_activity,
+            ) in enumerate(results, 1):
+                ranked_players.append(
+                    {
+                        "rank": rank,
+                        "player": player,
+                        "challenges_solved": challenges,
+                        "total_score": total,
+                        "avg_score": round(avg, 1),
+                        "best_score": best,
+                        "last_activity": last_activity,
+                    }
+                )
+
+            return ranked_players
+
+    async def get_player_details(self, player_name):
+        """Get detailed information about a specific player's solutions."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """
+                SELECT challenge, score, solve_code, timestamp
+                FROM scores 
+                WHERE player_name = ?
+                ORDER BY score ASC, timestamp DESC
+            """,
+                (player_name,),
+            )
+            return await cursor.fetchall()
 
     async def web_challenge_detail(self, request):
         """Web interface challenge detail page."""
@@ -519,6 +621,7 @@ class ScoreboardSystem:
                     "player": entry["player"],
                     "score": entry["score"],
                     "formatted_date": formatted_date,
+                    "solve_code": entry["solve_code"],
                     "is_tied": entry["is_tied"],
                 }
             )
@@ -526,6 +629,45 @@ class ScoreboardSystem:
         template = self.jinja_env.get_template("challenge_detail.html")
         html = template.render(
             title=challenge_name, challenge_name=challenge_name, leaderboard=leaderboard
+        )
+        return web.Response(text=html, content_type="text/html")
+
+    async def web_player_rankings(self, _request):
+        """Web interface player rankings page."""
+        player_rankings = await self.get_player_rankings()
+
+        template = self.jinja_env.get_template("player_rankings.html")
+        html = template.render(title="Player Rankings", players=player_rankings)
+        return web.Response(text=html, content_type="text/html")
+
+    async def web_player_details(self, request):
+        """Web interface player details page."""
+        player_name = request.match_info["player"]
+        player_details = await self.get_player_details(player_name)
+
+        # Format details for display
+        challenges = []
+        for challenge, score, solve_code, timestamp in player_details:
+            try:
+                dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                formatted_date = dt.strftime("%Y-%m-%d %H:%M")
+            except:
+                formatted_date = timestamp[:19] if timestamp else "Unknown"
+
+            challenges.append(
+                {
+                    "challenge": challenge,
+                    "score": score,
+                    "solve_code": solve_code,
+                    "formatted_date": formatted_date,
+                }
+            )
+
+        template = self.jinja_env.get_template("player_details.html")
+        html = template.render(
+            title=f"Player: {player_name}",
+            player_name=player_name,
+            challenges=challenges,
         )
         return web.Response(text=html, content_type="text/html")
 
@@ -575,9 +717,14 @@ class ScoreboardSystem:
             },
         )
 
+        # Static files route
+        app.router.add_static("/static/", path="static", name="static")
+
         # Web routes
         app.router.add_get("/", self.web_index)
         app.router.add_get("/challenge/{challenge}", self.web_challenge_detail)
+        app.router.add_get("/players", self.web_player_rankings)
+        app.router.add_get("/player/{player}", self.web_player_details)
 
         # API routes
         app.router.add_get("/api/challenges", self.web_api_challenges)

@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <a href="/" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Challenges
+            </a>
+            <h1 class="display-5 text-center flex-grow-1 mb-0">
+                <i class="bi bi-people-fill text-primary"></i>
+                Player Rankings
+            </h1>
+            <div style="width: 200px;"></div> <!-- Spacer for centering -->
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% if not players %}
+        <div class="alert alert-info text-center" role="alert">
+            <i class="bi bi-info-circle"></i>
+            <strong>No players found.</strong> Submit some scores to see player rankings!
+        </div>
+        {% else %}
+
+        <!-- Statistics Card -->
+        <div class="row my-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0">
+                            <i class="bi bi-graph-up"></i> Competition Statistics
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-primary">{{ players|length }}</h4>
+                                    <small class="text-muted">Total Players</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-success">{{ players[0].challenges_solved if players }}</h4>
+                                    <small class="text-muted">Most Challenges Solved</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-warning">{{ players[0].best_score if players }}</h4>
+                                    <small class="text-muted">Best Single Score</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <h4 class="text-info">{{ ((players|sum(attribute='avg_score')) /
+                                    (players|length))|round(1) if players }}</h4>
+                                <small class="text-muted">Average Score Per Player</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            {% for player in players %}
+            <div class="col-xl-4 col-lg-6 col-md-6 mb-3">
+                <div class="card leaderboard-card h-100
+                            {% if player.rank == 1 %}border-warning
+                            {% elif player.rank == 2 %}border-secondary  
+                            {% elif player.rank == 3 %}border-warning
+                            {% endif %}">
+
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="me-3">
+                                {% if player.rank == 1 %}
+                                <span class="badge bg-medal-gold text-dark fs-4 p-2">🥇</span>
+                                {% elif player.rank == 2 %}
+                                <span class="badge bg-medal-silver fs-4 p-2">🥈</span>
+                                {% elif player.rank == 3 %}
+                                <span class="badge bg-medal-bronze text-dark fs-4 p-2">🥉</span>
+                                {% else %}
+                                <span class="badge bg-primary fs-6 p-2"># {{ player.rank }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <h5 class="card-title mb-1">
+                                    <a href="/player/{{ player.player }}" class="text-decoration-none">
+                                        {{ player.player }}
+                                    </a>
+                                </h5>
+                            </div>
+                        </div>
+
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <h6 class="text-success mb-1">{{ player.challenges_solved }}</h6>
+                                    <small class="text-muted">Solved</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="text-warning mb-1">{{ player.total_score }}</h6>
+                                <small class="text-muted">Total Score</small>
+                            </div>
+                        </div>
+
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <h6 class="text-info mb-1">{{ player.avg_score }}</h6>
+                                    <small class="text-muted">Avg Score</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="text-primary mb-1">{{ player.best_score }}</h6>
+                                <small class="text-muted">Best Score</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer d-flex justify-content-between align-items-center border-top border-3
+                                {% if player.rank == 1 %}border-medal-gold
+                                {% elif player.rank == 2 %}border-medal-silver
+                                {% elif player.rank == 3 %}border-medal-bronze
+                                {% endif %}">
+                        <div>
+                            {% if player.rank <= 3 %} <small class="{% if player.rank == 1 %}text-medal-gold fw-bold
+                                          {% elif player.rank == 2 %}text-medal-silver fw-bold
+                                          {% elif player.rank == 3 %}text-medal-bronze fw-bold
+                                          {% endif %}">
+                                {% if player.rank == 1 %}
+                                <i class="bi bi-trophy-fill text-medal-gold"></i> Top Player!
+                                {% elif player.rank == 2 %}
+                                <i class="bi bi-award-fill text-medal-silver"></i> Runner-up
+                                {% elif player.rank == 3 %}
+                                <i class="bi bi-award text-medal-bronze"></i> Third Place
+                                {% endif %}
+                                </small>
+                                {% endif %}
+                        </div>
+                        <a href="/player/{{ player.player }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-eye"></i> View Solutions
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

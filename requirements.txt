@@ -1,0 +1,4 @@
+aiosqlite
+aiohttp
+aiohttp-cors
+jinja2
