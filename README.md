@@ -3,6 +3,8 @@
 - [🏆 CTF Scoreboard System](#-ctf-scoreboard-system)
   - [✨ Features](#-features)
   - [🚀 Setup](#-setup)
+    - [uv](#uv)
+    - [venv](#venv)
   - [💻 Usage](#-usage)
   - [⚙️ CLI Arguments](#️-cli-arguments)
   - [📡 Submission Protocol](#-submission-protocol)
@@ -22,6 +24,18 @@
 - **📱 Mobile friendly**: Works on all devices
 
 ## 🚀 Setup
+
+### uv
+
+```bash
+git clone <repository-url>
+cd scoreboard
+python -m uv venv
+source ./venv/bin/activate  # or .\.venv\Scripts\activate on Windows
+uv pip install -r requirements.txt
+```
+
+### venv
 
 ```bash
 git clone <repository-url>
