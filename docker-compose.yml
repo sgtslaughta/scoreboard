@@ -1,0 +1,78 @@
+services:
+  scoreboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ctf-scoreboard
+    restart: unless-stopped
+    # Environment variables
+    environment:
+      # Server configuration
+      - HOST=${HOST:-0.0.0.0}
+      - SOCKET_PORT=${SOCKET_PORT:-8080}
+      - WEB_PORT=${WEB_PORT:-8081}
+      - DB_PATH=${DB_PATH:-/app/data/scoreboard.db}
+      - CONFIG_PATH=${CONFIG_PATH:-/app/data/ctf_config.json}
+      
+      # CTF Configuration
+      - CTF_NAME=${CTF_NAME:-CTF Scoreboard}
+      - SCORING_TYPE=${SCORING_TYPE:-golf}
+      - ALLOW_TIES=${ALLOW_TIES:-true}
+      - SHOW_SCORES=${SHOW_SCORES:-true}
+      
+      # Features
+      - SOLUTIONS_ENABLED=${SOLUTIONS_ENABLED:-true}
+      - PLAYER_RANKINGS_ENABLED=${PLAYER_RANKINGS_ENABLED:-true}
+      - LIVE_UPDATES=${LIVE_UPDATES:-true}
+      - CHALLENGE_CATEGORIES=${CHALLENGE_CATEGORIES:-false}
+      
+      # UI Configuration
+      - THEME=${THEME:-competitive}
+      - SHOW_TIMESTAMPS=${SHOW_TIMESTAMPS:-true}
+      - SHOW_CLIENT_IPS=${SHOW_CLIENT_IPS:-false}
+      - MAX_LEADERBOARD_ENTRIES=${MAX_LEADERBOARD_ENTRIES:-100}
+      
+      # Submission Configuration
+      - REQUIRE_SOLUTIONS=${REQUIRE_SOLUTIONS:-true}
+      - MAX_SOLUTION_LENGTH=${MAX_SOLUTION_LENGTH:-10000}
+    
+    # Port mappings
+    ports:
+      - "${SOCKET_PORT:-8080}:8080"  # TCP socket port
+      - "${WEB_PORT:-8081}:8081"     # Web interface port
+    
+    # Volume mounts for data persistence
+    volumes:
+      - scoreboard_data:/app/data
+      - scoreboard_logs:/app/logs
+      - ./ctf_config.json:/app/data/ctf_config.json:ro  # Mount config file
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost', 8081)); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+# Named volumes for data persistence
+volumes:
+  scoreboard_data:
+    driver: local
+  scoreboard_logs:
+    driver: local
+
+# Networks
+networks:
+  default:
+    name: ctf-scoreboard-network

@@ -7,6 +7,7 @@ Features both TCP socket server and web interface.
 
 import argparse
 import asyncio
+import os
 from pathlib import Path
 
 from src.scoreboard import ScoreboardSystem
@@ -21,16 +22,32 @@ async def main():
     )
 
     parser.add_argument(
-        "--socket-port", type=int, default=8080, help="TCP socket server port"
+        "--socket-port", 
+        type=int, 
+        default=int(os.getenv("SOCKET_PORT", "8080")), 
+        help="TCP socket server port (env: SOCKET_PORT)"
     )
-    parser.add_argument("--web-port", type=int, default=8081, help="Web interface port")
     parser.add_argument(
-        "--db", default="scoreboard.db", help="SQLite database file path"
+        "--web-port", 
+        type=int, 
+        default=int(os.getenv("WEB_PORT", "8081")), 
+        help="Web interface port (env: WEB_PORT)"
     )
     parser.add_argument(
-        "--config", default="ctf_config.json", help="Configuration file path"
+        "--db", 
+        default=os.getenv("DB_PATH", "scoreboard.db"), 
+        help="SQLite database file path (env: DB_PATH)"
     )
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind servers to")
+    parser.add_argument(
+        "--config", 
+        default=os.getenv("CONFIG_PATH", "ctf_config.json"), 
+        help="Configuration file path (env: CONFIG_PATH)"
+    )
+    parser.add_argument(
+        "--host", 
+        default=os.getenv("HOST", "0.0.0.0"), 
+        help="Host to bind servers to (env: HOST)"
+    )
 
     args = parser.parse_args()
 
