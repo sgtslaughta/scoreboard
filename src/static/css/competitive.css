@@ -26,7 +26,7 @@
 
 /* Clean Typography */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     background: var(--comp-bg-primary);
     min-height: 100vh;
 }
@@ -265,6 +265,71 @@ h6 {
     color: var(--comp-text-muted) !important;
 }
 
+/* Layout utilities */
+.header-spacer {
+    width: 200px;
+}
+
+/* Badge styling */
+.rank-badge-consistent {
+    min-width: 60px;
+    text-align: center;
+}
+
+.score-badge-consistent {
+    min-width: 80px;
+    text-align: center;
+}
+
+/* Code display */
+.solution-code {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-x: auto;
+}
+
+.solution-container {
+    border-radius: 8px;
+}
+
+/* Accordion styling to match cards */
+.accordion.card .accordion-item {
+    background: var(--comp-bg-secondary);
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.accordion.card .accordion-item:last-child {
+    border-bottom: none;
+}
+
+.accordion.card .accordion-item:first-child {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.accordion.card .accordion-item:first-child .accordion-button {
+    border-top-left-radius: 11px;
+    border-top-right-radius: 11px;
+}
+
+.accordion.card .accordion-item:last-child {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+.accordion.card .accordion-item:last-child .accordion-button.collapsed {
+    border-bottom-left-radius: 11px;
+    border-bottom-right-radius: 11px;
+}
+
+.accordion.card .accordion-button {
+    background: linear-gradient(135deg, var(--comp-bg-secondary), #1e2328);
+    color: var(--comp-text-bright);
+    border: none;
+    font-weight: 600;
+}
+
 /* Light Mode Overrides */
 [data-bs-theme="light"] {
     --comp-bg-primary: #f8f9fa;
@@ -301,16 +366,37 @@ h6 {
     color: #6c757d !important;
 }
 
-[data-bs-theme="light"] h1, [data-bs-theme="light"] h2, [data-bs-theme="light"] h3, 
-[data-bs-theme="light"] h4, [data-bs-theme="light"] h5, [data-bs-theme="light"] h6 {
+[data-bs-theme="light"] h1,
+[data-bs-theme="light"] h2,
+[data-bs-theme="light"] h3,
+[data-bs-theme="light"] h4,
+[data-bs-theme="light"] h5,
+[data-bs-theme="light"] h6 {
     color: #212529 !important;
 }
 
-[data-bs-theme="light"] .card-title, [data-bs-theme="light"] .card-subtitle {
+[data-bs-theme="light"] .card-title,
+[data-bs-theme="light"] .card-subtitle {
     color: #212529 !important;
 }
 
 [data-bs-theme="light"] .btn:hover {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     transform: translateY(-1px);
+}
+
+/* Light mode accordion styling */
+[data-bs-theme="light"] .accordion.card .accordion-item {
+    background: white;
+    border-bottom: 1px solid #dee2e6;
+}
+
+[data-bs-theme="light"] .accordion.card .accordion-item:last-child {
+    border-bottom: none;
+}
+
+[data-bs-theme="light"] .accordion.card .accordion-button {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    color: #212529;
+    font-weight: 600;
 }

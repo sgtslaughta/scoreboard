@@ -2,9 +2,21 @@
 
 {% block extra_head %}
 <script>
+    function updateRefreshTimestamp() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById('refreshTimestamp').textContent = timeString;
+    }
+
     function refreshPage() {
         window.location.reload();
     }
+
+    // Update timestamp on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        updateRefreshTimestamp();
+    });
+
     // Auto-refresh every 30 seconds
     setInterval(refreshPage, 30000);
 </script>
@@ -25,13 +37,21 @@
                 <button class="btn btn-primary me-2" onclick="refreshPage()">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
+                {% if config.is_feature_enabled("player_rankings_enabled") %}
                 <a href="/players" class="btn btn-outline-primary">
                     <i class="bi bi-people-fill"></i> Player Rankings
                 </a>
+                {% endif %}
             </div>
-            <small class="text-muted auto-refresh-indicator">
-                <i class="bi bi-clock"></i> Auto-refresh every 30 seconds
-            </small>
+            <div class="text-end">
+                <small class="text-muted auto-refresh-indicator">
+                    <i class="bi bi-clock"></i> Auto-refresh every 30 seconds
+                </small>
+                <br>
+                <small class="text-muted auto-refresh-indicator" id="lastRefreshTime">
+                    <i class="bi bi-arrow-clockwise"></i> Last refreshed: <span id="refreshTimestamp">Just now</span>
+                </small>
+            </div>
         </div>
     </div>
 </div>

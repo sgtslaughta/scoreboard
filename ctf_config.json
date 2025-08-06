@@ -1,0 +1,33 @@
+{
+  "ctf_name": "CTF Scoreboard",
+  "scoring": {
+    "scoring_type": "golf",
+    "allow_ties": true,
+    "show_scores": true
+  },
+  "features": {
+    "solutions_enabled": true,
+    "player_rankings_enabled": true,
+    "live_updates": true,
+    "challenge_categories": false
+  },
+  "ui": {
+    "theme": "competitive",
+    "show_timestamps": true,
+    "show_client_ips": false,
+    "max_leaderboard_entries": 100
+  },
+  "submission": {
+    "require_solutions": true,
+    "max_solution_length": 10000,
+    "allowed_file_types": [
+      ".py",
+      ".sh",
+      ".txt",
+      ".c",
+      ".cpp",
+      ".java",
+      ".js"
+    ]
+  }
+}

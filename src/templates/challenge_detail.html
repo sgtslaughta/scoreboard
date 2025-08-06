@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <a href="/" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to All Challenges
+            </a>
+            <h1 class="display-5 text-center flex-grow-1 mb-0">
+                <i class="bi bi-flag-fill text-primary"></i>
+                {{ challenge_name }} Leaderboard
+            </h1>
+            <div class="header-spacer"></div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% if not leaderboard %}
+        <div class="alert alert-info text-center" role="alert">
+            <i class="bi bi-info-circle"></i>
+            <strong>No scores yet for this challenge.</strong> Be the first to submit a score!
+        </div>
+        {% else %}
+
+        <div class="row my-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0">
+                            <i class="bi bi-graph-up"></i> Challenge Statistics
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-primary">{{ leaderboard|length }}</h4>
+                                    <small class="text-muted">Total Players</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-success">{{ leaderboard[0].score if leaderboard }}</h4>
+                                    <small class="text-muted">Best Score</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-warning">{{ leaderboard[-1].score if leaderboard }}</h4>
+                                    <small class="text-muted">Latest Score</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <h4 class="text-info">{{ ((leaderboard|sum(attribute='score')) /
+                                    (leaderboard|length))|round(1) if leaderboard }}</h4>
+                                <small class="text-muted">Average Score</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <div class="accordion card" id="leaderboardAccordion">
+                    {% for entry in leaderboard %}
+                    <div class="accordion-item">
+
+                        <h2 class="accordion-header" id="heading{{ loop.index }}">
+                            <button class="accordion-button collapsed d-flex align-items-center 
+                                {% if entry.rank <= 3 %}fw-bold{% endif %}" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#collapse{{ loop.index }}" aria-expanded="false"
+                                aria-controls="collapse{{ loop.index }}">
+
+                                <!-- Medal/Rank Badge -->
+                                <div class="me-3">
+                                    {% if entry.rank == 1 %}
+                                    <span class="badge bg-medal-gold text-dark fs-5 p-2 rank-badge-consistent">🥇</span>
+                                    {% elif entry.rank == 2 %}
+                                    <span class="badge bg-medal-silver fs-5 p-2 rank-badge-consistent">🥈</span>
+                                    {% elif entry.rank == 3 %}
+                                    <span class="badge bg-medal-bronze fs-5 p-2 rank-badge-consistent">🥉</span>
+                                    {% else %}
+                                    <span class="badge bg-primary fs-6 p-2 rank-badge-consistent"># {{ entry.rank
+                                        }}</span>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Player Name -->
+                                <div class="flex-grow-1">
+                                    {% if config.is_feature_enabled("player_rankings_enabled") %}
+                                    <a href="/player/{{ entry.player }}" class="text-decoration-none text-reset"
+                                        onclick="event.stopPropagation();">
+                                        {{ entry.player }}
+                                    </a>
+                                    {% else %}
+                                    {{ entry.player }}
+                                    {% endif %}
+                                    {% if entry.is_tied %}
+                                    <small class="text-muted ms-2">(tied)</small>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Timestamp -->
+                                <div class="me-3">
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar3"></i> {{ entry.formatted_date }}
+                                    </small>
+                                </div>
+
+                                <!-- Special indicator for top 3 -->
+                                {% if entry.rank <= 3 %} <div class="me-3">
+                                    {% if entry.rank == 1 %}
+                                    <small class="text-warning"><i class="bi bi-trophy-fill"></i></small>
+                                    {% elif entry.rank == 2 %}
+                                    <small class="text-secondary"><i class="bi bi-award-fill"></i></small>
+                                    {% elif entry.rank == 3 %}
+                                    <small class="text-warning"><i class="bi bi-award"></i></small>
+                                    {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Score (moved to be right before dropdown icon) -->
+                    <div class="me-3">
+                        <span class="badge bg-success fs-6 px-3 py-2 score-badge-consistent">{{ entry.score }}
+                            pts</span>
+                    </div>
+
+                    </button>
+                    </h2>
+
+                    {% if config.is_feature_enabled("solutions_enabled") %}
+                    <div id="collapse{{ loop.index }}" class="accordion-collapse collapse"
+                        aria-labelledby="heading{{ loop.index }}" data-bs-parent="#leaderboardAccordion">
+                        <div class="accordion-body bg-dark text-light">
+                            <div class="d-flex align-items-center mb-3">
+                                <i class="bi bi-code-slash text-warning me-2"></i>
+                                <h6 class="text-warning mb-0">{{ entry.player }}'s Solution</h6>
+                            </div>
+                            <pre
+                                class="mb-0 p-3 bg-black rounded solution-code"><code>{{ entry.solve_code | e }}</code></pre>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div id="collapse{{ loop.index }}" class="accordion-collapse collapse"
+                        aria-labelledby="heading{{ loop.index }}" data-bs-parent="#leaderboardAccordion">
+                        <div class="accordion-body">
+                            <p class="text-muted mb-0">
+                                <i class="bi bi-info-circle"></i>
+                                Solution viewing is disabled in this competition.
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+</div>
+{% endblock %}

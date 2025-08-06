@@ -2,3 +2,4 @@ aiosqlite
 aiohttp
 aiohttp-cors
 jinja2
+mypy

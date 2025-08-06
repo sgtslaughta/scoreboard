@@ -11,7 +11,7 @@
                 <i class="bi bi-person-fill text-primary"></i>
                 {{ player_name }}
             </h1>
-            <div style="width: 200px;"></div> <!-- Spacer for centering -->
+            <div class="header-spacer"></div> <!-- Spacer for centering -->
         </div>
     </div>
 </div>
@@ -83,9 +83,8 @@
                         <h6 class="card-subtitle mb-3 text-muted">
                             <i class="bi bi-code-slash"></i> Solution Code
                         </h6>
-                        <div class="bg-dark p-3" style="border-radius: 8px;">
-                            <pre class="text-light mb-0"
-                                style="white-space: pre-wrap; word-wrap: break-word;"><code>{{ solution.solve_code | e }}</code></pre>
+                        <div class="bg-dark p-3 solution-container">
+                            <pre class="text-light mb-0 solution-code"><code>{{ solution.solve_code | e }}</code></pre>
                         </div>
                     </div>
                     <div class="card-footer">

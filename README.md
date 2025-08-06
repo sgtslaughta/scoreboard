@@ -7,7 +7,23 @@
     - [venv](#venv)
   - [💻 Usage](#-usage)
   - [⚙️ CLI Arguments](#️-cli-arguments)
+  - [🔧 Configuration](#-configuration)
+    - [📋 Configuration File Structure](#-configuration-file-structure)
+    - [🎯 Configuration Options](#-configuration-options)
+      - [CTF Settings](#ctf-settings)
+      - [Scoring System](#scoring-system)
+      - [Feature Toggles](#feature-toggles)
+      - [User Interface](#user-interface)
+      - [Submission Rules](#submission-rules)
+    - [🔄 Configuration Behavior](#-configuration-behavior)
+    - [🎮 Gameplay Impact](#-gameplay-impact)
+      - [Golf Scoring (default)](#golf-scoring-default)
+      - [Standard Scoring](#standard-scoring)
+      - [Optional Solutions](#optional-solutions)
+    - [🛠️ Advanced Configuration](#️-advanced-configuration)
   - [📡 Submission Protocol](#-submission-protocol)
+    - [Default Format (solutions required)](#default-format-solutions-required)
+    - [Optional Solutions Format](#optional-solutions-format)
   - [🧪 Testing](#-testing)
   - [🌐 Web Interface](#-web-interface)
   - [🔌 API](#-api)
@@ -30,8 +46,10 @@
 ```bash
 git clone <repository-url>
 cd scoreboard
-python -m uv venv
-source ./venv/bin/activate  # or .\.venv\Scripts\activate on Windows
+
+uv venv .venv
+source .venv/bin/activate  # or .\.venv\Scripts\activate on Windows
+
 uv pip install -r requirements.txt
 ```
 
@@ -40,8 +58,10 @@ uv pip install -r requirements.txt
 ```bash
 git clone <repository-url>
 cd scoreboard
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+
+python -m venv .venv
+source .venv/bin/activate  # or venv\Scripts\activate on Windows
+
 pip install -r requirements.txt
 ```
 
@@ -49,44 +69,163 @@ pip install -r requirements.txt
 
 ```bash
 # Default: TCP on :8080, web on :8081, saves to scoreboard.db
-python scoreboard.py
-
-# Custom ports and database
-python scoreboard.py 9000 9001 my_ctf.db
+python app.py
 ```
 
 ## ⚙️ CLI Arguments
 
-| Argument      | Type       | Description                           | Default         | Example       |
-| ------------- | ---------- | ------------------------------------- | --------------- | ------------- |
-| `socket_port` | Positional | TCP server port for score submissions | `8080`          | `9000`        |
-| `web_port`    | Positional | Web interface port                    | `8081`          | `9001`        |
-| `db_file`     | Positional | SQLite database file path             | `scoreboard.db` | `ctf_2024.db` |
-| `--help`      | Flag       | Show usage information                | -               | -             |
-
-**Argument Types:**
-- **Positional**: Must be provided in order (socket_port, web_port, db_file)
-- **Flag**: Can be used independently with `--help`
+| Argument        | Type  | Description                           | Default           | Example                   |
+| --------------- | ----- | ------------------------------------- | ----------------- | ------------------------- |
+| `--socket-port` | Named | TCP server port for score submissions | `8080`            | `--socket-port 9000`      |
+| `--web-port`    | Named | Web interface port                    | `8081`            | `--web-port 9001`         |
+| `--db`          | Named | SQLite database file path             | `scoreboard.db`   | `--db ctf_2024.db`        |
+| `--config`      | Named | Configuration file path               | `ctf_config.json` | `--config my_config.json` |
+| `--host`        | Named | Host to bind servers to               | `0.0.0.0`         | `--host localhost`        |
+| `--help`        | Flag  | Show usage information                | -                 | -                         |
 
 **📋 Usage Examples:**
 ```bash
-python scoreboard.py                    # Use all defaults
-python scoreboard.py 9000               # Custom TCP port
-python scoreboard.py 9000 9001          # Custom TCP and web ports  
-python scoreboard.py 9000 9001 my.db    # Custom ports and database
-python scoreboard.py --help             # Show help
+python app.py                                    # Use all defaults
+python app.py --socket-port 9000                 # Custom TCP port
+python app.py --web-port 9001 --db my.db         # Custom web port and database
+python app.py --config custom_ctf.json           # Use custom configuration
+python app.py --help                             # Show help
+```
+
+## 🔧 Configuration
+
+The scoreboard system uses a JSON configuration file (`ctf_config.json`) that provides extensive customization options. If the file doesn't exist, a default configuration will be created automatically.
+
+### 📋 Configuration File Structure
+
+```json
+{
+  "ctf_name": "CTF Scoreboard",
+  "scoring": {
+    "scoring_type": "golf", 
+    "allow_ties": true,
+    "show_scores": true
+  },
+  "features": {
+    "solutions_enabled": true,
+    "player_rankings_enabled": true,
+    "live_updates": true,
+    "challenge_categories": false
+  },
+  "ui": {
+    "theme": "competitive",
+    "show_timestamps": true,
+    "show_client_ips": false,
+    "max_leaderboard_entries": 100
+  },
+  "submission": {
+    "require_solutions": true,
+    "max_solution_length": 10000,
+    "allowed_file_types": [".py", ".sh", ".txt", ".c", ".cpp", ".java", ".js"]
+  }
+}
+```
+
+### 🎯 Configuration Options
+
+#### CTF Settings
+- **`ctf_name`**: Display name for the competition (string)
+
+#### Scoring System
+- **`scoring_type`**: Scoring system type:
+  - `"golf"`: Lower scores are better, displayed ascending (fastest times, fewest attempts)
+  - `"standard"`: Higher scores are better, displayed descending (points-based challenges)
+- **`allow_ties`**: Whether tied scores are permitted (boolean)
+- **`show_scores`**: Display score values in UI (boolean)
+
+#### Feature Toggles
+- **`solutions_enabled`**: Show/hide solution code viewing (boolean)
+- **`player_rankings_enabled`**: Enable player rankings pages and links (boolean)
+- **`live_updates`**: Enable real-time updates (boolean)
+- **`challenge_categories`**: Group challenges by category (boolean, future feature)
+
+#### User Interface
+- **`theme`**: Visual theme (`"competitive"`, `"classic"`, or `"minimal"`)
+- **`show_timestamps`**: Display submission timestamps (boolean)
+- **`show_client_ips`**: Show client IP addresses (boolean)
+- **`max_leaderboard_entries`**: Maximum entries shown per leaderboard (integer)
+
+#### Submission Rules
+- **`require_solutions`**: Whether solution code is mandatory (boolean)
+- **`max_solution_length`**: Maximum characters in solution code (integer)
+- **`allowed_file_types`**: Permitted file extensions for uploads (array)
+
+### 🔄 Configuration Behavior
+
+- **Auto-creation**: Missing config files are created with defaults
+- **Validation**: Invalid values are corrected with warnings
+- **Merge Strategy**: Partial configs are merged with defaults
+- **Hot Reload**: Restart required for config changes
+
+### 🎮 Gameplay Impact
+
+#### Golf Scoring (default)
+```bash
+# Lower scores are better, automatically sorted ascending (best first)
+echo "Alice,crypto1,45,solution_code" | nc localhost 8080  # Better score (shown higher on leaderboard)
+echo "Bob,crypto1,67,solution_code" | nc localhost 8080    # Worse score (shown lower on leaderboard)
+```
+
+#### Standard Scoring 
+```bash  
+# Higher scores are better, automatically sorted descending (best first)
+echo "Alice,pwn1,1500,exploit_code" | nc localhost 8080    # Better score (shown higher on leaderboard)
+echo "Bob,pwn1,1200,exploit_code" | nc localhost 8080      # Worse score (shown lower on leaderboard)
+```
+
+#### Optional Solutions
+When `require_solutions` is `false`, the solution code becomes optional:
+```bash
+# Both formats are accepted:
+echo "Alice,crypto1,45,solution_code" | nc localhost 8080  # With solution
+echo "Bob,crypto1,67" | nc localhost 8080                  # Without solution
+```
+
+### 🛠️ Advanced Configuration
+
+**Custom Configuration File:**
+```bash
+python app.py --config /path/to/custom_config.json
+```
+
+**Environment-Specific Configs:**
+```bash
+# Development
+python app.py --config dev_config.json
+
+# Production  
+python app.py --config prod_config.json
+
+# Competition-specific
+python app.py --config bsides_2024.json
 ```
 
 ## 📡 Submission Protocol
 
-Submit scores via TCP using format: `name,challenge,score,solve_code`
+The TCP submission format depends on your configuration:
 
+### Default Format (solutions required)
 ```bash
-# Example
+# Format: name,challenge,score,solve_code
 echo "Alice,RSA_Baby,42,print('Hello World!')" | nc localhost 8080
 ```
 
-**⚠️ Note**: Lower scores are better (golf scoring).
+### Optional Solutions Format 
+When `require_solutions` is `false` in config:
+```bash
+# With solution
+echo "Alice,RSA_Baby,42,print('Hello World!')" | nc localhost 8080
+
+# Without solution  
+echo "Bob,RSA_Baby,38" | nc localhost 8080
+```
+
+**⚠️ Scoring**: Default is golf scoring (lower is better, shown ascending). Can be changed to standard scoring (higher is better, shown descending) in configuration.
 
 ## 🧪 Testing
 
