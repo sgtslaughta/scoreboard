@@ -1,5 +1,6 @@
 # CTF Scoreboard Docker Setup
 
+
 This document provides instructions for running the CTF Scoreboard application using Docker and Docker Compose.
 
 ## Quick Start
